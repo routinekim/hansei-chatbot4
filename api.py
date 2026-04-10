@@ -185,13 +185,21 @@ def chat_endpoint(request: QueryRequest):
     try:
         # 2. 다중 대화의 문맥 파악
         history_text = ""
+        last_user_msg = ""
+        
         if hasattr(request, 'history') and request.history:
             for msg in request.history[-4:]: # 최대 최근 4개 문답만 컨텍스트로 사용
                 role_name = "학생" if msg.role == "user" else "상담원"
                 history_text += f"[{role_name}] {msg.content}\n"
+                if msg.role == "user":
+                    last_user_msg = msg.content
                 
-        # 검색용 쿼리는 현재 문맥(이전 질문)을 포함시킬 수도 있으나 단순하게 유지
-        relevant_docs = global_retriever.invoke(prompt)
+        # 대화 맥락 유지: 직전 질문이 있으면 현재 질문과 합쳐서 검색(검색 정확도 상승)
+        search_query = prompt
+        if last_user_msg:
+            search_query = f"{last_user_msg}에 이어지는 내용: {prompt}"
+            
+        relevant_docs = global_retriever.invoke(search_query)
         context = "\n".join([d.page_content for d in relevant_docs])
         
         # 3. LLM 호출 시 프롬프트에 문맥 포함
