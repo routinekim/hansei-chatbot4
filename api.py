@@ -117,7 +117,7 @@ def chat_endpoint(request: QueryRequest):
         context = "\n".join([d.page_content for d in relevant_docs])
         
         # 3. LLM 호출 시 프롬프트에 문맥 포함
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0)
         
         full_prompt = "당신은 한세대학교 학부생 상담원입니다. 아래 학칙 및 지침을 바탕으로 당당하고 친절하게 답하세요.\n"
         full_prompt += "가독성을 위해 다음 원칙을 반드시 지키세요:\n"
