@@ -67,8 +67,14 @@ async function fetchChatResponse(text) {
             chatHistory = chatHistory.slice(-8);
         }
 
-        // 줄바꿈 문자를 <br>로 치환하여 말풍선 갱신
-        bubble.innerHTML = data.answer.replace(/\n/g, '<br>');
+        // marked.js 설정 (줄바꿈 허용)
+        marked.setOptions({
+            breaks: true,
+            gfm: true
+        });
+
+        // Markdown 렌더링으로 말풍선 갱신
+        bubble.innerHTML = marked.parse(data.answer);
     } catch (error) {
         let msgToShow = error.message;
         if (error.message === 'Failed to fetch') {
