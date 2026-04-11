@@ -332,3 +332,73 @@ body {
 .send-btn:hover {
     background-color: var(--secondary);
 }
+
+/* Markdown Contextual Styles */
+.bot-bubble table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    background-color: white;
+}
+
+.bot-bubble th {
+    background-color: var(--primary);
+    color: white;
+    font-weight: 600;
+    padding: 10px 12px;
+    text-align: left;
+}
+
+.bot-bubble td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-main);
+}
+
+.bot-bubble tr:last-child td {
+    border-bottom: none;
+}
+
+.bot-bubble tr:nth-child(even) {
+    background-color: #f9fbff;
+}
+
+/* Markdown Typography */
+.bot-bubble p {
+    margin-bottom: 8px;
+}
+
+.bot-bubble p:last-child {
+    margin-bottom: 0;
+}
+
+.bot-bubble strong {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.bot-bubble ul, .bot-bubble ol {
+    margin: 8px 0 8px 20px;
+}
+
+.bot-bubble li {
+    margin-bottom: 4px;
+}
+
+/* Mobile Responsive Table */
+@media screen and (max-width: 480px) {
+    .bot-bubble {
+        max-width: 85%;
+    }
+    
+    .bot-bubble table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+}
+
