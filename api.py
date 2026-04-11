@@ -216,4 +216,5 @@ def chat_endpoint(request: QueryRequest):
         return QueryResponse(answer=response.content)
     except Exception as e:
         print(f"AI 통신 에러: {e}")
-        raise HTTPException(status_code=500, detail="AI가 응답을 생성하는 중 오류가 발생했습니다.")
+        # 진짜 에러 원인을 추적하기 위해 e의 내용을 함께 보냅니다.
+        raise HTTPException(status_code=500, detail=f"AI가 응답을 생성하는 중 오류가 발생했습니다. (상세 에러: {str(e)})")
