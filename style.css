@@ -207,13 +207,13 @@ body {
     flex-direction: column !important;
     align-items: center !important;
     text-align: center;
-    padding: 20px 10px; /* Reduced top padding (40->20) and sides (20->10) */
-    gap: 15px !important;
+    padding: 5px 10px; /* Further reduced top padding (20->5) */
+    gap: 10px !important;
 }
 
 .welcome-section .bot-avatar {
-    width: 180px !important; /* Increased size (150->180) */
-    height: 180px !important;
+    width: 220px !important; /* Maximized character size (180->220) */
+    height: 220px !important;
     border: none !important;
     box-shadow: none !important;
 }
