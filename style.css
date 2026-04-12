@@ -211,7 +211,7 @@ body {
     flex-direction: column !important;
     align-items: center !important;
     text-align: center;
-    padding: 0 10px 20px 10px; /* Zero top padding (5->0) */
+    padding: 4px 10px 20px 10px; /* Added tiny top margin (0->4px) as requested */
     gap: 5px !important; /* Tighten gap with bubble */
 }
 
