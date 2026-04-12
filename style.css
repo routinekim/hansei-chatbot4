@@ -259,10 +259,9 @@ body {
     /* 말풍선과 동일하게 연한 스카이블루 배경 적용 */
     border-radius: 16px;
     padding: 16px;
-    margin-top: 4px;
-    margin-left: 46px;
-    /* 봇 말풍선 위치와 정렬 */
+    margin: 10px auto 0 auto; /* Center the menu instead of fixed left margin */
     max-width: 400px;
+    width: calc(100% - 32px); /* Maintain some side padding on mobile */
 }
 
 /* Quick Menu Title */
