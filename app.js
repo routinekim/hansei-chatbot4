@@ -31,9 +31,10 @@ async function fetchChatResponse(text) {
     row.className = 'message-row bot-row';
     const avatar = document.createElement('div');
     avatar.className = 'bot-avatar';
-    const icon = document.createElement('i');
-    icon.setAttribute('data-lucide', 'bot');
-    avatar.appendChild(icon);
+    const img = document.createElement('img');
+    img.src = 'hanbi.gif';
+    img.alt = '한비';
+    avatar.appendChild(img);
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble bot-bubble';
@@ -42,7 +43,6 @@ async function fetchChatResponse(text) {
     row.appendChild(avatar);
     row.appendChild(bubble);
     chatbox.appendChild(row);
-    lucide.createIcons({ root: row });
     scrollToBottom();
 
     // 서버에 요청 전송
@@ -111,10 +111,10 @@ function appendBotMessage(text) {
     const avatar = document.createElement('div');
     avatar.className = 'bot-avatar';
 
-    // Create Lucide icon element
-    const icon = document.createElement('i');
-    icon.setAttribute('data-lucide', 'bot');
-    avatar.appendChild(icon);
+    const img = document.createElement('img');
+    img.src = 'hanbi.gif';
+    img.alt = '한비';
+    avatar.appendChild(img);
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble bot-bubble';
@@ -123,9 +123,6 @@ function appendBotMessage(text) {
     row.appendChild(avatar);
     row.appendChild(bubble);
     chatbox.appendChild(row);
-
-    // Re-render lucide icons inside the new row
-    lucide.createIcons({ root: row });
 
     scrollToBottom();
 }
