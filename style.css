@@ -56,9 +56,10 @@ body {
 }
 
 .chat-header h1 {
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: 1rem;
+    font-weight: 700;
     white-space: nowrap;
+    color: white; /* Ensure title is white as requested */
 }
 
 .header-title-container {
@@ -86,10 +87,15 @@ body {
 }
 
 .header-bot-logo {
-    height: 44px;
-    /* 로봇 아이콘 크기 최적화 (기존 텍스트 영역에 맞춤) */
+    height: 40px;
     width: auto;
     object-fit: contain;
+}
+
+.header-title-text {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
 }
 
 .icon-btn {
@@ -194,6 +200,33 @@ body {
     width: 22px;
     height: 22px;
     color: var(--primary);
+}
+
+/* Welcome Section (Hero Style) */
+.welcome-section {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center;
+    padding: 40px 20px;
+    gap: 20px !important;
+}
+
+.welcome-section .bot-avatar {
+    width: 150px !important;
+    height: 150px !important;
+    border: none !important; /* Stand-alone character feel */
+    box-shadow: none !important;
+}
+
+.welcome-section .message-bubble {
+    max-width: 100%;
+    margin-left: 0 !important;
+    border-top-left-radius: 16px !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    padding: 0;
+    font-size: 1.05rem;
+    color: var(--secondary);
 }
 
 /* Bubbles */
