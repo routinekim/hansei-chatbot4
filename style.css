@@ -119,7 +119,7 @@ body {
 .chat-scroll-area {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 16px;
+    padding: 0 16px 20px 16px; /* Removed top padding (20->0) */
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -130,7 +130,11 @@ body {
     margin: 0 auto;
 }
 
-/* Date Divider */
+/* Hide the very first date divider to save space at the top */
+.chat-scroll-area > .date-divider:first-child {
+    display: none;
+}
+
 .date-divider {
     text-align: center;
     margin: 10px 0;
@@ -207,8 +211,8 @@ body {
     flex-direction: column !important;
     align-items: center !important;
     text-align: center;
-    padding: 5px 10px; /* Further reduced top padding (20->5) */
-    gap: 10px !important;
+    padding: 0 10px 20px 10px; /* Zero top padding (5->0) */
+    gap: 5px !important; /* Tighten gap with bubble */
 }
 
 .welcome-section .bot-avatar {
