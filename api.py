@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,6 +29,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# API 전용 라우터 설정
+api_router = APIRouter(prefix="/api")
+
+# 서버 상태 진단용 헬스체크 경로
+@api_router.get("/health")
+def health_check():
+    return {
+        "status": "ok", 
+        "retriever": "ready" if global_retriever is not None else "loading",
+        "api_model": "gemini-2.5-flash-lite"
+    }
 
 # 글로벌 변수로 리트리버 선언
 global_retriever = None
@@ -85,7 +97,7 @@ def scrape_academic_schedule():
 | **11월** | • [11-09 ~ 11-13] 재입학, 전부(과) 신청<br>• [11-23 ~ 11-27] 동계 계절학기 신청 |
 | **12월** | • [12-01] 2학기 종강예배<br>• [12-15 ~ 12-21] 기말고사<br>• [12-21] 2학기 종강<br>• [12-22 ~ 01-13] 동계 계절학기 수업 |"""
 
-@app.post("/api/chat", response_model=QueryResponse)
+@api_router.post("/chat", response_model=QueryResponse)
 def chat_endpoint(request: QueryRequest):
     """실제 프론트엔드 앱이 질문을 던지는 API 주소입니다."""
     prompt = request.query
@@ -150,6 +162,8 @@ def chat_endpoint(request: QueryRequest):
             status_code=500, 
             detail=f"AI 응답 생성 실패: {detail_msg}"
         )
+# API 라우터를 메인 앱에 포함
+app.include_router(api_router)
 
 @app.get("/")
 def read_index():
