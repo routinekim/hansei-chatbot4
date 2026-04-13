@@ -47,7 +47,7 @@ async function fetchChatResponse(text) {
 
     // 서버에 요청 전송
     try {
-        const response = await fetch('https://hansei-chatbot4.onrender.com/chat', {
+        const response = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: text, history: chatHistory })
