@@ -38,7 +38,7 @@ async function fetchChatResponse(text) {
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble bot-bubble';
-    bubble.innerHTML = '자료를 검토 중입니다... 잠시만 기다려주세요 👀<br><span style="font-size:0.8rem; color:#888;">(첫 질문 시 서버를 깨우기 위해최대 1~2분 소요될 수 있습니다.)</span>';
+    bubble.innerHTML = '자료를 검토 중입니다... 잠시만 기다려주세요 👀<br>
 
     row.appendChild(avatar);
     row.appendChild(bubble);
@@ -49,12 +49,12 @@ async function fetchChatResponse(text) {
     try {
         const backendUrl = "https://hansei-chatbot4.onrender.com/api/chat";
         console.log(`[DEBUG] API 호출 시도: ${backendUrl}`);
-        
+
         const response = await fetch(backendUrl, {
             method: 'POST',
             mode: 'cors', // Cross-origin 요청 명시
             credentials: 'omit', // 쿠키 등 인증 정보 제외 (보안/차단 방지)
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             },
