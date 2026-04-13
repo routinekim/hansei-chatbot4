@@ -88,7 +88,8 @@ def scrape_academic_schedule():
 @app.post("/chat", response_model=QueryResponse)
 def chat_endpoint(request: QueryRequest):
     """실제 프론트엔드 앱이 질문을 던지는 API 주소입니다."""
-    prompt = request.query
+    import time
+    start_time = time.time()
     
     # 1. 가로채기: 학사일정 크롤링 (띄어쓰기 무시하고 검사)
     if "학사일정" in prompt.replace(" ", ""):
@@ -115,7 +116,12 @@ def chat_endpoint(request: QueryRequest):
         if last_user_msg:
             search_query = f"{last_user_msg}에 이어지는 내용: {prompt}"
             
+        # [로그 추가] 검색 시작 시간
+        search_start = time.time()
         relevant_docs = global_retriever.invoke(search_query)
+        search_duration = time.time() - search_start
+        print(f"🔍 [검색 완료] 소요 시간: {search_duration:.2f}초")
+        
         context = "\n".join([d.page_content for d in relevant_docs])
         
         # 3. LLM 호출 시 프롬프트에 문맥 포함
@@ -132,11 +138,18 @@ def chat_endpoint(request: QueryRequest):
             
         full_prompt += f"\n[관련 학칙 및 정보]\n{context}\n\n[학생 질문]\n{prompt}"
         
+        # [로그 추가] AI 생성 시작 시간
+        ai_start = time.time()
         response = llm.invoke(full_prompt)
+        ai_duration = time.time() - ai_start
+        total_duration = time.time() - start_time
+        
+        print(f"🤖 [AI 응답 완료] 생성 시간: {ai_duration:.2f}초 / 총 소요 시간: {total_duration:.2f}초")
         
         return QueryResponse(answer=response.content)
     except Exception as e:
-        print(f"AI 통신 에러: {e}")
+        error_duration = time.time() - start_time
+        print(f"❌ [에러 발생] {error_duration:.2f}초 시점에서 중단: {e}")
         # 진짜 에러 원인을 추적하기 위해 e의 내용을 함께 보냅니다.
         raise HTTPException(status_code=500, detail=f"AI가 응답을 생성하는 중 오류가 발생했습니다. (상세 에러: {str(e)})")
 
