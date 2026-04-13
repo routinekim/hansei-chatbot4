@@ -85,7 +85,7 @@ def scrape_academic_schedule():
 | **11월** | • [11-09 ~ 11-13] 재입학, 전부(과) 신청<br>• [11-23 ~ 11-27] 동계 계절학기 신청 |
 | **12월** | • [12-01] 2학기 종강예배<br>• [12-15 ~ 12-21] 기말고사<br>• [12-21] 2학기 종강<br>• [12-22 ~ 01-13] 동계 계절학기 수업 |"""
 
-@app.post("/chat", response_model=QueryResponse)
+@app.post("/api/chat", response_model=QueryResponse)
 def chat_endpoint(request: QueryRequest):
     """실제 프론트엔드 앱이 질문을 던지는 API 주소입니다."""
     prompt = request.query
