@@ -136,9 +136,20 @@ def chat_endpoint(request: QueryRequest):
         
         return QueryResponse(answer=response.content)
     except Exception as e:
-        print(f"AI 통신 에러: {e}")
-        # 진짜 에러 원인을 추적하기 위해 e의 내용을 함께 보냅니다.
-        raise HTTPException(status_code=500, detail=f"AI가 응답을 생성하는 중 오류가 발생했습니다. (상세 에러: {str(e)})")
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"!!! AI 통신 에러 발생 !!!\n{error_trace}")
+        
+        detail_msg = str(e)
+        if "API_KEY_INVALID" in detail_msg:
+            detail_msg = "Google API 키가 유효하지 않습니다. Render 설정에서 GOOGLE_API_KEY를 확인해 주세요."
+        elif "quota" in detail_msg.lower():
+            detail_msg = "Google API 할당량이 초과되었습니다. 잠시 후 다시 시도해 주세요."
+            
+        raise HTTPException(
+            status_code=500, 
+            detail=f"AI 응답 생성 실패: {detail_msg}"
+        )
 
 @app.get("/")
 def read_index():
