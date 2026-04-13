@@ -47,6 +47,7 @@ async function fetchChatResponse(text) {
 
     // 서버에 요청 전송
     try {
+        console.log(`[DEBUG] API 호출 시도: ${window.location.origin}/api/chat`);
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -56,12 +57,14 @@ async function fetchChatResponse(text) {
         if (!response.ok) {
             const status = response.status;
             let errorMsg = `서버 오류 (${status})`;
+            console.error(`[DEBUG] 서버 응답 코드: ${status}`);
             try {
                 const errorData = await response.json();
                 errorMsg = errorData.detail || errorMsg;
             } catch (e) {
                 const text = await response.text().catch(() => "");
                 if (text) errorMsg += `: ${text.substring(0, 80)}...`;
+                console.error(`[DEBUG] 서버 응답 본문 파싱 실패 또는 텍스트: ${text}`);
             }
             throw new Error(errorMsg);
         }
