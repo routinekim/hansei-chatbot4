@@ -54,8 +54,16 @@ async function fetchChatResponse(text) {
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.detail || 'API 서버 응답 오류');
+            const status = response.status;
+            let errorMsg = `서버 오류 (${status})`;
+            try {
+                const errorData = await response.json();
+                errorMsg = errorData.detail || errorMsg;
+            } catch (e) {
+                const text = await response.text().catch(() => "");
+                if (text) errorMsg += `: ${text.substring(0, 80)}...`;
+            }
+            throw new Error(errorMsg);
         }
         const data = await response.json();
 
