@@ -90,6 +90,7 @@ def chat_endpoint(request: QueryRequest):
     """실제 프론트엔드 앱이 질문을 던지는 API 주소입니다."""
     import time
     start_time = time.time()
+    prompt = request.query
     
     # 1. 가로채기: 학사일정 크롤링 (띄어쓰기 무시하고 검사)
     if "학사일정" in prompt.replace(" ", ""):
