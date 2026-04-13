@@ -45,13 +45,19 @@ async function fetchChatResponse(text) {
     chatbox.appendChild(row);
     scrollToBottom();
 
-    // 서버에 요청 전송
+    // 서버에 요청 전송 (타임아웃 90초 설정)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90초 후 취소
+
     try {
         const response = await fetch('https://hansei-chatbot4.onrender.com/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: text, history: chatHistory })
+            body: JSON.stringify({ query: text, history: chatHistory }),
+            signal: controller.signal // 신호 전달
         });
+
+        clearTimeout(timeoutId); // 요청 성공 시 타이머 해제
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -76,12 +82,17 @@ async function fetchChatResponse(text) {
         // Markdown 렌더링으로 말풍선 갱신
         bubble.innerHTML = marked.parse(data.answer);
     } catch (error) {
+        clearTimeout(timeoutId);
         let msgToShow = error.message;
-        if (error.message === 'Failed to fetch') {
+        
+        if (error.name === 'AbortError') {
+            msgToShow = '서버 응답 시간이 너무 길어 요청이 취소되었습니다. Render 무료 서버가 깨어나는 중일 수 있으니, 잠시 후 다시 시도해 주세요.';
+        } else if (error.message === 'Failed to fetch') {
             msgToShow = '서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인해 주세요.';
         }
-        bubble.innerHTML = `⚠️ 질문 처리 실패<br><span style="font-size:0.8rem; color:#666;">${msgToShow}<br>🙏 구글 AI 무료 버전은 질문이 단시간에 몰리면(1분 15회 제한) 응답이 거절될 수 있습니다. 1~2분 뒤 다시 시도해 주세요.</span>`;
-        console.error(error);
+        
+        bubble.innerHTML = `⚠️ 질문 처리 실패<br><span style="font-size:0.8rem; color:#666;">${msgToShow}<br>🙏 계속해서 응답이 없다면 페이지를 새로고침(F5) 해주세요.</span>`;
+        console.error('Chat Error:', error);
     }
     scrollToBottom();
 }
