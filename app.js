@@ -49,16 +49,22 @@ async function fetchChatResponse(text) {
     try {
         const backendUrl = "https://hansei-chatbot4.onrender.com/api/chat";
         console.log(`[DEBUG] API 호출 시도: ${backendUrl}`);
+        
         const response = await fetch(backendUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            mode: 'cors', // Cross-origin 요청 명시
+            credentials: 'omit', // 쿠키 등 인증 정보 제외 (보안/차단 방지)
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
             body: JSON.stringify({ query: text, history: chatHistory })
         });
 
         if (!response.ok) {
             const status = response.status;
-            let errorMsg = `서버 오류 (${status})`;
-            console.error(`[DEBUG] 서버 응답 코드: ${status}`);
+            let errorMsg = `서버 응답 오류 (${status})`;
+            console.error(`[DEBUG] 서버 응답 코드: ${status} - URL: ${backendUrl}`);
             try {
                 const errorData = await response.json();
                 errorMsg = errorData.detail || errorMsg;
