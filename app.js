@@ -47,8 +47,9 @@ async function fetchChatResponse(text) {
 
     // 서버에 요청 전송
     try {
-        console.log(`[DEBUG] API 호출 시도: ${window.location.origin}/api/chat`);
-        const response = await fetch('/api/chat', {
+        const backendUrl = "https://hansei-chatbot4.onrender.com/api/chat";
+        console.log(`[DEBUG] API 호출 시도: ${backendUrl}`);
+        const response = await fetch(backendUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: text, history: chatHistory })
