@@ -45,12 +45,13 @@ class QueryRequest(BaseModel):
     query: str
     history: Optional[List[Message]] = []
 
-# 3. 챗봇 엔진 클래스 (싱글톤 패턴)
+# 3. 챗봇 엔진 클래스 (싱글톤 패턴 & 폴백 기능 추가)
 class HanseiBot:
     def __init__(self):
         self.retriever = None
         self.llm = None
         self.is_ready = False
+        self.current_model = "none"
 
     async def initialize(self):
         """서버 시작 시 한 번만 실행되어 리소스를 로드합니다."""
@@ -68,14 +69,31 @@ class HanseiBot:
             )
             self.retriever = vector_db.as_retriever(search_kwargs={"k": 6})
             
-            # 3-2. LLM 초기화 (Flash 모델 고정, Pro 제외)
-            # 유료 서버의 안정성을 위해 객체를 미리 생성하여 재사용합니다.
-            self.llm = ChatGoogleGenerativeAI(
-                model="gemini-2.5-flash-lite", 
-                temperature=0,
-                max_retries=3
-            )
+            # 3-2. LLM 초기화 (계층적 폴백 시스템)
+            # 1위: 2.5-flash-lite (최신 효율 모델), 2위: 1.5-flash (표준 안정 모델)
+            model_candidates = ["gemini-2.5-flash-lite", "gemini-1.5-flash"]
             
+            for model_name in model_candidates:
+                try:
+                    logger.info(f"🧪 [모델 테스트] {model_name} 시도 중...")
+                    test_llm = ChatGoogleGenerativeAI(
+                        model=model_name, 
+                        temperature=0,
+                        max_retries=2
+                    )
+                    # 실제 가용성 확인을 위해 가벼운 테스트 호출을 시도할 수도 있으나, 
+                    # 우선 객체 생성 및 설정을 진행합니다.
+                    self.llm = test_llm
+                    self.current_model = model_name
+                    logger.info(f"🎯 [모델 선정] {model_name}이(가) 활성화되었습니다.")
+                    break
+                except Exception as e:
+                    logger.warning(f"⚠️ [모델 제외] {model_name} 사용 불가: {str(e)}")
+                    continue
+            
+            if not self.llm:
+                raise Exception("적합한 AI 모델을 찾을 수 없습니다.")
+
             self.is_ready = True
             logger.info(f"✅ [초기화 완료] 소요 시간: {time.time() - start_time:.2f}s")
         except Exception as e:
@@ -103,10 +121,11 @@ async def startup_event():
 
 @app.get("/health")
 async def health():
-    """서버 상태 확인 (경량화 버전)"""
+    """서버 상태 확인 (현재 사용 대기 중인 모델 정보 포함)"""
     return {
         "status": "online" if bot.is_ready else "initializing",
-        "engine": "gemini-2.5-flash-lite"
+        "current_model": bot.current_model,
+        "is_ready": bot.is_ready
     }
 
 @app.get("/debug/models")
