@@ -50,7 +50,7 @@ async function fetchChatResponse(text) {
     const timeoutId = setTimeout(() => controller.abort(), 90000); // 90초 후 취소
 
     try {
-        const backendUrl = "https://hansei-chatbot4.onrender.com/api/chat";
+        const backendUrl = "/api/chat";
         console.log(`[DEBUG] API 호출 시도: ${backendUrl}`);
 
         const response = await fetch(backendUrl, {
