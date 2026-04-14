@@ -21,7 +21,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # 환경변수 로드 (.env 파일에 GOOGLE_API_KEY 설정 필요)
 load_dotenv()
 
-app = FastAPI(title="Hansei Chatbot API", description="한세대학교 학사 챗봇 백엔드 API 서버")
+app = FastAPI(
+    title="Hansei Chatbot API", 
+    description="한세대학교 학사 챗봇 백엔드 API 서버",
+    redirect_slashes=False # 슬래시 유무로 인한 404 에러 방지
+)
 
 # 모바일 UI 프론트엔드가 다른 포트나 도메인에서 호출할 수 있도록 CORS 허용
 app.add_middleware(
@@ -82,6 +86,7 @@ def health_check():
 @app.post("/api/chat/")
 async def chat_endpoint(request: QueryRequest):
     """실시간 스트리밍 방식으로 답변을 생성하는 API입니다."""
+    print(f"🚀 [API 호출] /api/chat 진입 - 질문: {request.query}")
     import time
     start_time = time.time()
     prompt = request.query
