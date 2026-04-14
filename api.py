@@ -182,7 +182,14 @@ def load_data():
     except Exception as e:
         print(f"오류: FAISS DB를 불러오지 못했습니다. 로컬에서 build_index.py를 먼저 실행해 주세요. 에러: {e}")
 
+# 헬스체크 엔드포인트 (Render 등 배포 서비스 상태 확인용)
+@app.get("/health")
+@app.head("/health")
+def health_check():
+    return {"status": "ok", "retriever": "ready" if global_retriever is not None else "loading"}
+
 @app.get("/")
+@app.head("/")
 def read_index():
     return FileResponse("index.html")
 
