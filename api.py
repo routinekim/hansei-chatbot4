@@ -16,6 +16,9 @@ from langchain_community.vectorstores import FAISS
 
 # 1. 환경 설정 및 로깅
 load_dotenv()
+# 구글 API 버전을 안정 버전인 v1으로 강제 고정 (v1beta 관련 404 에러 해결)
+os.environ["GOOGLE_API_VERSION"] = "v1"
+
 logging.basicConfig(
     level=logging.INFO, 
     format='%(asctime)s - %(levelname)s - %(message)s'
