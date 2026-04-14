@@ -70,7 +70,21 @@ def scrape_academic_schedule():
 @app.get("/health")
 @app.head("/health")
 async def health():
-    return {"status": "ok", "retriever": "ready" if global_retriever is not None else "loading"}
+    available_models = []
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+    except Exception as e:
+        available_models = [f"Error listing models: {str(e)}"]
+
+    return {
+        "status": "ok", 
+        "retriever": "ready" if global_retriever is not None else "loading",
+        "available_models": available_models[:10] # 상위 10개만 표시
+    }
 
 @app.post("/chat")
 async def chat(request: QueryRequest):
@@ -100,8 +114,9 @@ async def chat(request: QueryRequest):
             relevant_docs = await asyncio.to_thread(global_retriever.invoke, search_query)
             context = "\n".join([d.page_content for d in relevant_docs])
             
-            # AI 모델 호출 (최신/안정 모델: gemini-3.1-flash로 복구)
-            llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash", temperature=0)
+            # AI 모델 호출 (가장 표준적인 gemini-1.5-flash 사용)
+            # 만약 404가 계속된다면 /health에서 출력된 모델 중 하나로 이름을 바꿔야 합니다.
+            llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
             
             full_prompt = (
                 "당신은 한세대학교 학부생 상담원입니다. 아래 학칙 및 지침을 바탕으로 당당하고 친절하게 답하세요.\n"
@@ -118,7 +133,7 @@ async def chat(request: QueryRequest):
             logger.info(f"✅ [답변 완료] 소요시간: {time.time() - start_time:.2f}s")
         except Exception as e:
             logger.error(f"❌ [에러 발생] {str(e)}", exc_info=True)
-            yield f"⚠️ 오류 발생: {str(e)}"
+            yield f"⚠️ 챗봇 엔진 에러 (404/503) 발생 시 /health 페이지에서 사용 가능한 모델을 확인해 주세요.\n상세내용: {str(e)}"
 
     return StreamingResponse(response_generator(), media_type="text/plain")
 
