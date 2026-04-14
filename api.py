@@ -69,9 +69,14 @@ class HanseiBot:
             )
             self.retriever = vector_db.as_retriever(search_kwargs={"k": 6})
             
-            # 3-2. LLM 초기화 (계층적 폴백 시스템)
-            # 1위: 2.5-flash-lite (최신 효율 모델), 2위: 1.5-flash (표준 안정 모델)
-            model_candidates = ["gemini-2.5-flash-lite", "gemini-1.5-flash"]
+            # 3-2. LLM 초기화 (4단계 계층적 폴백 시스템)
+            # 순위: 2.5-flash -> 2.5-flash-lite -> 2.0-flash -> 1.5-flash
+            model_candidates = [
+                "gemini-2.5-flash", 
+                "gemini-2.5-flash-lite", 
+                "gemini-2.0-flash", 
+                "gemini-1.5-flash"
+            ]
             
             for model_name in model_candidates:
                 try:
