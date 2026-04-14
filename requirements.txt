@@ -11,3 +11,4 @@ docarray
 requests
 beautifulsoup4
 faiss-cpu
+google-generativeai
