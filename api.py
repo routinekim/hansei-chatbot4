@@ -150,14 +150,22 @@ async def chat(request: QueryRequest):
             model_name = model_entry["name"]
             llm = model_entry["obj"]
             try:
-                logger.info(f"🚀 [시도] 모델: {model_name}")
+                logger.info(f"🚀 [답변 생성 시도] 모델: {model_name}")
+                gen_start = time.time()
+                first_chunk = True
+                
                 async for chunk in llm.astream(full_prompt):
+                    if first_chunk:
+                        logger.info(f"⚡ [스트리밍 시작] {model_name} (응답시간: {time.time() - gen_start:.2f}s)")
+                        first_chunk = False
                     if chunk.content:
                         yield chunk.content
+                
                 success = True
+                logger.info(f"✅ [답변 완료] 사용된 엔진: {model_name} (총 소요 시간: {time.time() - request_start:.2f}s)")
                 break
             except Exception as e:
-                logger.warning(f"⚠️ [실패 및 전환] {model_name}: {str(e)}")
+                logger.warning(f"⚠️ [실패 및 전환] {model_name} 에러: {str(e)}")
                 continue
 
         if not success:
