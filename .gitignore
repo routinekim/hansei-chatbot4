@@ -1,4 +1,22 @@
+# Security
 .env
+
+# Python
 __pycache__/
-*.pyc
-faiss_index/
+*.py[cod]
+*$py.class
+.venv/
+build/
+dist/
+*.egg-info/
+
+# JavaScript / Node
+node_modules/
+.DS_Store
+
+# Virtual Environments
+venv/
+ENV/
+
+# FAISS (Optional: if you want to keep the index on GitHub, remove the line below)
+# faiss_index/

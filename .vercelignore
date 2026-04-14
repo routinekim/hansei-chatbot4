@@ -1,0 +1,12 @@
+requirements.txt
+api.py
+build_index.py
+test_query.py
+test_scrape.py
+extract_phone.py
+scrape_scholar.py
+.env
+faiss_index/
+__pycache__/
+*.pdf
+*.txt
