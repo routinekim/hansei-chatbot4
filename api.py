@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Hansei Chatbot API",
-    description="한세대학교 학사 챗봇 백엔드 API 서버 (유료 인스턴스 최적화 버전)"
+    description="한세대학교 학사 챗봇 백엔드 API 서버 (503 폴백 강화 버전)"
 )
 
 # CORS 설정
@@ -45,19 +45,18 @@ class QueryRequest(BaseModel):
     query: str
     history: Optional[List[Message]] = []
 
-# 3. 챗봇 엔진 클래스 (싱글톤 패턴 & 폴백 기능 추가)
+# 3. 챗봇 엔진 클래스 (실시간 모델 풀 관리)
 class HanseiBot:
     def __init__(self):
         self.retriever = None
-        self.llm = None
+        self.models = [] # 사용할 수 있는 LLM 객체들의 리스트
         self.is_ready = False
-        self.current_model = "none"
 
     async def initialize(self):
-        """서버 시작 시 한 번만 실행되어 리소스를 로드합니다."""
+        """서버 시작 시 모든 후보 모델을 미리 초기화하여 풀(Pool)을 생성합니다."""
         try:
             start_time = time.time()
-            logger.info("📡 [초기화] 벡터 DB 및 AI 모델 로드 시작...")
+            logger.info("📡 [초기화] 벡터 DB 및 AI 모델 풀 로드 시작...")
 
             # 3-1. 벡터 DB 로드
             embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
@@ -69,38 +68,31 @@ class HanseiBot:
             )
             self.retriever = vector_db.as_retriever(search_kwargs={"k": 6})
             
-            # 3-2. LLM 초기화 (4단계 계층적 폴백 시스템)
-            # 순위: 2.5-flash -> 2.5-flash-lite -> 2.0-flash -> 1.5-flash
-            model_candidates = [
+            # 3-2. LLM 모델 풀 구성 (우선순위 순)
+            model_names = [
                 "gemini-2.5-flash", 
                 "gemini-2.5-flash-lite", 
                 "gemini-2.0-flash", 
                 "gemini-1.5-flash"
             ]
             
-            for model_name in model_candidates:
+            for name in model_names:
                 try:
-                    logger.info(f"🧪 [모델 테스트] {model_name} 시도 중...")
-                    test_llm = ChatGoogleGenerativeAI(
-                        model=model_name, 
+                    llm = ChatGoogleGenerativeAI(
+                        model=name, 
                         temperature=0,
-                        max_retries=2
+                        max_retries=1 # 실시간 폴백을 위해 내부 재시도는 최소화
                     )
-                    # 실제 가용성 확인을 위해 가벼운 테스트 호출을 시도할 수도 있으나, 
-                    # 우선 객체 생성 및 설정을 진행합니다.
-                    self.llm = test_llm
-                    self.current_model = model_name
-                    logger.info(f"🎯 [모델 선정] {model_name}이(가) 활성화되었습니다.")
-                    break
+                    self.models.append({"name": name, "obj": llm})
+                    logger.info(f"✅ [모델 로드 완료] {name}")
                 except Exception as e:
-                    logger.warning(f"⚠️ [모델 제외] {model_name} 사용 불가: {str(e)}")
-                    continue
-            
-            if not self.llm:
-                raise Exception("적합한 AI 모델을 찾을 수 없습니다.")
+                    logger.warning(f"⚠️ [모델 로드 실패] {name}: {str(e)}")
+
+            if not self.models:
+                raise Exception("사용 가능한 AI 모델을 하나도 로드하지 못했습니다.")
 
             self.is_ready = True
-            logger.info(f"✅ [초기화 완료] 소요 시간: {time.time() - start_time:.2f}s")
+            logger.info(f"✅ [전체 초기화 완료] 소요 시간: {time.time() - start_time:.2f}s")
         except Exception as e:
             logger.error(f"❌ [초기화 실패] {str(e)}")
             self.is_ready = False
@@ -126,77 +118,84 @@ async def startup_event():
 
 @app.get("/health")
 async def health():
-    """서버 상태 확인 (현재 사용 대기 중인 모델 정보 포함)"""
     return {
         "status": "online" if bot.is_ready else "initializing",
-        "current_model": bot.current_model,
+        "loaded_models": [m["name"] for m in bot.models],
         "is_ready": bot.is_ready
     }
 
-@app.get("/debug/models")
-async def list_available_models():
-    """사용 가능한 구글 AI 모델 리스트 조회 (디버그 전용)"""
-    try:
-        import google.generativeai as genai
-        genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
-        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        return {"available_models": models}
-    except Exception as e:
-        return {"error": str(e)}
-
 @app.post("/chat")
 async def chat(request: QueryRequest):
-    """실시간 스트리밍 답변 엔드포인트 (성능 로깅 포함)"""
+    """실시간 스트리밍 답변 엔드포인트 (실시간 503 폴백 로직 포함)"""
     request_start = time.time()
-    logger.info(f"🔥 [요청 수신] 질문: {request.query}")
     
     if not bot.is_ready:
-        raise HTTPException(status_code=503, detail="서버가 아직 준비 중입니다. 잠시 후 다시 시도해 주세요.")
+        raise HTTPException(status_code=503, detail="서버 준비 중입니다.")
 
     async def response_generator():
-        try:
-            prompt = request.query
-            
-            # 1. 고정 정보 가로채기
-            if "학사일정" in prompt.replace(" ", ""):
-                 yield scrape_academic_schedule()
-                 return
+        prompt = request.query
+        
+        # 1. 고정 정보 가로채기
+        if "학사일정" in prompt.replace(" ", ""):
+             yield scrape_academic_schedule()
+             return
 
-            # 2. 관련 정보 검색 (Profiling)
-            search_start = time.time()
-            relevant_docs = await asyncio.to_thread(bot.retriever.invoke, prompt)
-            context = "\n".join([d.page_content for d in relevant_docs])
-            search_duration = time.time() - search_start
-            logger.info(f"🔍 [데이터 검색 완료] 소요 시간: {search_duration:.2f}s")
+        # 2. 관련 정보 검색
+        relevant_docs = await asyncio.to_thread(bot.retriever.invoke, prompt)
+        context = "\n".join([d.page_content for d in relevant_docs])
+        
+        # 3. 대화 문맥 구성
+        history_text = ""
+        if request.history:
+            for msg in request.history[-4:]:
+                history_text += f"[{'User' if msg.role == 'user' else 'AI'}] {msg.content}\n"
+        
+        full_prompt = (
+            "당신은 한세대학교 학부생 상담원입니다. 아래 학칙 및 지침을 바탕으로 당당하고 친절하게 답하세요.\n"
+            "가독성을 위해 Markdown 표(Table)나 굵게 표시를 적극 활용하세요.\n\n"
+            f"[관련 정보]\n{context}\n\n[이전 대화]\n{history_text}\n\n[학생 질문]\n{prompt}"
+        )
+
+        # 4. 실시간 모델 폴백 시도
+        success = False
+        last_error = ""
+
+        for model_entry in bot.models:
+            model_name = model_entry["name"]
+            llm = model_entry["obj"]
             
-            # 3. 대화 문맥 구성
-            history_text = ""
-            if request.history:
-                for msg in request.history[-4:]:
-                    history_text += f"[{'User' if msg.role == 'user' else 'AI'}] {msg.content}\n"
-            
-            full_prompt = (
-                "당신은 한세대학교 학부생 상담원입니다. 아래 학칙 및 지침을 바탕으로 당당하고 친절하게 답하세요.\n"
-                "가독성을 위해 Markdown 표(Table)나 굵게 표시를 적극 활용하세요.\n\n"
-                f"[관련 정보]\n{context}\n\n[이전 대화]\n{history_text}\n\n[학생 질문]\n{prompt}"
-            )
-            
-            # 4. AI 생성 및 스트리밍
-            gen_start = time.time()
-            first_chunk = True
-            async for chunk in bot.llm.astream(full_prompt):
-                if first_chunk:
-                    logger.info(f"⚡ [AI 생성 시작] 첫 토큰 소요 시간: {time.time() - gen_start:.2f}s")
-                    first_chunk = False
-                if chunk.content:
-                    yield chunk.content
-            
-            total_duration = time.time() - request_start
-            logger.info(f"✅ [답변 완료] 총 소요 시간: {total_duration:.2f}s")
-            
-        except Exception as e:
-            logger.error(f"❌ [에러 발생] {str(e)}", exc_info=True)
-            yield f"⚠️ 오류 발생: {str(e)}"
+            try:
+                logger.info(f"🚀 [답변 생성 시도] 모델: {model_name}")
+                gen_start = time.time()
+                first_chunk = True
+                
+                async for chunk in llm.astream(full_prompt):
+                    if first_chunk:
+                        logger.info(f"⚡ [스트리밍 시작] {model_name} (응답시간: {time.time() - gen_start:.2f}s)")
+                        first_chunk = False
+                    if chunk.content:
+                        yield chunk.content
+                
+                success = True
+                logger.info(f"✅ [답변 완료] 성공 모델: {model_name} (총 소요: {time.time() - request_start:.2f}s)")
+                break # 성공 시 루프 탈출
+                
+            except Exception as e:
+                error_str = str(e)
+                last_error = error_str
+                # 503(인기 폭주) 또는 일시적인 사용 불가 에러인 경우 다음 모델 시도
+                if "503" in error_str or "demand" in error_str.lower() or "Resource exhausted" in error_str:
+                    logger.warning(f"⚠️ [503/과부하 감지] {model_name} 실패, 다음 모델로 전환합니다. (사유: {error_str[:100]}...)")
+                    continue
+                else:
+                    # 그 외의 치명적 에러(401, 403 등)는 즉시 중단
+                    logger.error(f"❌ [치명적 에러] {model_name}: {error_str}")
+                    yield f"⚠️ 챗봇 엔진 오류가 발생했습니다: {error_str}"
+                    return
+
+        if not success:
+            logger.error(f"💀 [최종 실패] 모든 모델이 응답할 수 없습니다. 마지막 에러: {last_error}")
+            yield f"⚠️ 현재 모든 AI 모델의 사용량이 많아 답변을 드릴 수 없습니다. 잠시 후 다시 시도해 주세요. (503 Fallback Failed)"
 
     return StreamingResponse(response_generator(), media_type="text/plain")
 
