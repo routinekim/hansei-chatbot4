@@ -1,12 +1,10 @@
-requirements.txt
-api.py
+__pycache__/
+*.pdf
+scrape_debug.html
+기타 참고파일/
 build_index.py
 test_query.py
 test_scrape.py
 extract_phone.py
 scrape_scholar.py
 .env
-faiss_index/
-__pycache__/
-*.pdf
-*.txt
