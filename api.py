@@ -114,9 +114,8 @@ async def chat(request: QueryRequest):
             relevant_docs = await asyncio.to_thread(global_retriever.invoke, search_query)
             context = "\n".join([d.page_content for d in relevant_docs])
             
-            # AI 모델 호출 (2026년 표준: gemini-3.1-flash 적용)
-            # 만약 404가 계속된다면 /health에서 출력된 모델 중 하나로 이름을 바꿔야 합니다.
-            llm = ChatGoogleGenerativeAI(model="gemini-3.1-flash", temperature=0)
+            # AI 모델 호출 (진단 결과 지원 확인됨: gemini-2.5-pro 적용)
+            llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
             
             full_prompt = (
                 "당신은 한세대학교 학부생 상담원입니다. 아래 학칙 및 지침을 바탕으로 당당하고 친절하게 답하세요.\n"
