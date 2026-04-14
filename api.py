@@ -82,7 +82,7 @@ class HanseiBot:
             
             # 4-3. 모델 풀 구성 (최신 모델 위주)
             model_names = [
-                "gemini-2.0-flash-lite",
+                # "gemini-2.0-flash-lite",
                 # "gemini-1.5-flash", 
                 "gemini-2.5-flash-lite", 
                 # "gemini-2.0-flash"
