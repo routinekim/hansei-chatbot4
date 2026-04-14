@@ -49,6 +49,7 @@ async function fetchChatResponse(text) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000); // 90초 후 취소
 
+    let startTime = performance.now();
     try {
         const backendUrl = "/chat";
         console.log(`[DEBUG] API 호출 시도: ${backendUrl}`);
@@ -98,6 +99,9 @@ async function fetchChatResponse(text) {
             scrollToBottom();
         }
 
+        const duration = (performance.now() - startTime) / 1000;
+        console.log(`✅ [답변 완료] 소요 시간: ${duration.toFixed(2)}s`);
+
         // 대화 기록 저장
         chatHistory.push({ role: 'user', content: text });
         chatHistory.push({ role: 'assistant', content: fullAnswer });
@@ -108,9 +112,9 @@ async function fetchChatResponse(text) {
         let msgToShow = error.message;
         
         if (error.name === 'AbortError') {
-            msgToShow = '서버 응답 시간이 너무 길어 요청이 취소되었습니다. Render 무료 서버가 깨어나는 중일 수 있으니, 잠시 후 다시 시도해 주세요.';
+            msgToShow = '서버 응답 시간이 너무 길어 요청이 중단되었습니다. 일시적인 네트워크 지연일 수 있으니 다시 시도해 주세요.';
         } else if (error.message === 'Failed to fetch') {
-            msgToShow = '서버에 연결할 수 없습니다. 서버가 켜져 있는지 확인해 주세요.';
+            msgToShow = '서버에 연결할 수 없습니다. 서버 상태를 확인해 주세요.';
         }
         
         bubble.innerHTML = `⚠️ 질문 처리 실패<br><span style="font-size:0.8rem; color:#666;">${msgToShow}<br>🙏 계속해서 응답이 없다면 페이지를 새로고침(F5) 해주세요.</span>`;
