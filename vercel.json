@@ -7,6 +7,17 @@
   ],
   "routes": [
     {
+      "handle": "filesystem"
+    },
+    {
+      "src": "/chat",
+      "dest": "api.py"
+    },
+    {
+      "src": "/health",
+      "dest": "api.py"
+    },
+    {
       "src": "/(.*)",
       "dest": "api.py"
     }

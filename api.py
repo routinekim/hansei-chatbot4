@@ -166,11 +166,26 @@ async def chat(request: QueryRequest):
     return StreamingResponse(response_generator(), media_type="text/plain")
 
 @app.get("/")
-async def serve_index(): return FileResponse("index.html")
+async def serve_index():
+    path = os.path.join(os.path.dirname(__file__), "index.html")
+    return FileResponse(path)
+
 @app.get("/app.js")
-async def serve_js(): return FileResponse("app.js")
+async def serve_js():
+    path = os.path.join(os.path.dirname(__file__), "app.js")
+    return FileResponse(path)
+
 @app.get("/style.css")
-async def serve_css(): return FileResponse("style.css")
+async def serve_css():
+    path = os.path.join(os.path.dirname(__file__), "style.css")
+    return FileResponse(path)
+
+@app.get("/hanbi.gif")
+async def serve_gif():
+    path = os.path.join(os.path.dirname(__file__), "hanbi.gif")
+    if os.path.exists(path):
+        return FileResponse(path)
+    return {"error": "file not found"}
 
 if __name__ == "__main__":
     import uvicorn
