@@ -114,8 +114,8 @@ async def chat(request: QueryRequest):
             relevant_docs = await asyncio.to_thread(global_retriever.invoke, search_query)
             context = "\n".join([d.page_content for d in relevant_docs])
             
-            # AI 모델 호출 (최적화 모델: gemini-2.0-flash-lite 적용)
-            llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash-lite", temperature=0)
+            # AI 모델 호출 (효율적 고성능 모델: gemini-2.5-flash-lite 적용)
+            llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0)
             
             full_prompt = (
                 "당신은 한세대학교 학부생 상담원입니다. 아래 학칙 및 지침을 바탕으로 당당하고 친절하게 답하세요.\n"
