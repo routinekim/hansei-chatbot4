@@ -1,6 +1,7 @@
-import os
 from fastapi import FastAPI, HTTPException, APIRouter
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
+import asyncio
+import json
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -76,71 +77,81 @@ def health_check():
         "api_model": "gemini-2.5-flash-lite"
     }
 
-# 챗봇 API (POST) - 슬래시 여부와 상관없이 모두 허용
 @app.post("/api/chat")
 @app.post("/api/chat/")
-def chat_endpoint(request: QueryRequest):
-    """실제 프론트엔드 앱이 질문을 던지는 API 주소입니다."""
+async def chat_endpoint(request: QueryRequest):
+    """실시간 스트리밍 방식으로 답변을 생성하는 API입니다."""
     import time
     start_time = time.time()
     prompt = request.query
     
-    # 1. 가로채기: 학사일정 크롤링 (띄어쓰기 무시하고 검사)
+    # 1. 가로채기: 학사일정 크롤링 (스트리밍 하지 않고 즉시 반환)
     if "학사일정" in prompt.replace(" ", ""):
         schedule_text = scrape_academic_schedule()
-        return QueryResponse(answer=schedule_text)
+        async def schedule_generator():
+            yield schedule_text
+        return StreamingResponse(schedule_generator(), media_type="text/plain")
         
     if global_retriever is None:
         raise HTTPException(status_code=500, detail="서버에 학칙 데이터가 로드되지 않았습니다.")
     
-    try:
-        # 2. 다중 대화의 문맥 파악
-        history_text = ""
-        last_user_msg = ""
-        
-        if hasattr(request, 'history') and request.history:
-            for msg in request.history[-4:]: # 최대 최근 4개 문답만 컨텍스트로 사용
-                role_name = "학생" if msg.role == "user" else "상담원"
-                history_text += f"[{role_name}] {msg.content}\n"
-                if msg.role == "user":
-                    last_user_msg = msg.content
+    async def response_generator():
+        try:
+            # 2. 다중 대화의 문맥 파악
+            history_text = ""
+            last_user_msg = ""
+            
+            if hasattr(request, 'history') and request.history:
+                for msg in request.history[-4:]: # 최대 최근 4개 문답만 컨텍스트로 사용
+                    role_name = "학생" if msg.role == "user" else "상담원"
+                    history_text += f"[{role_name}] {msg.content}\n"
+                    if msg.role == "user":
+                        last_user_msg = msg.content
+                    
+            # 대화 맥락 유지: 직전 질문이 있으면 현재 질문과 합쳐서 검색(검색 정확도 상승)
+            search_query = prompt
+            if last_user_msg:
+                search_query = f"{last_user_msg}에 이어지는 내용: {prompt}"
                 
-        # 대화 맥락 유지: 직전 질문이 있으면 현재 질문과 합쳐서 검색(검색 정확도 상승)
-        search_query = prompt
-        if last_user_msg:
-            search_query = f"{last_user_msg}에 이어지는 내용: {prompt}"
+            # [로그 추가] 검색 시작 시간
+            search_start = time.time()
+            relevant_docs = await asyncio.to_thread(global_retriever.invoke, search_query)
+            search_duration = time.time() - search_start
+            print(f"🔍 [검색 완료] 소요 시간: {search_duration:.2f}초")
             
-        # [로그 추가] 검색 시작 시간
-        search_start = time.time()
-        relevant_docs = global_retriever.invoke(search_query)
-        search_duration = time.time() - search_start
-        print(f"🔍 [검색 완료] 소요 시간: {search_duration:.2f}초")
-        
-        context = "\n".join([d.page_content for d in relevant_docs])
-        
-        # 3. LLM 호출 시 프롬프트에 문맥 포함
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
-        
-        full_prompt = "당신은 한세대학교 학부생 상담원입니다. 아래 학칙 및 지침을 바탕으로 당당하고 친절하게 답하세요.\n"
-        full_prompt += "가독성을 위해 다음 원칙을 반드시 지키세요:\n"
-        full_prompt += "1. 나열할 항목이 2개 이상이거나 정보가 구조적이라면 **Markdown 표(Table)** 형식을 적극 활용하여 깔끔하게 정리하세요.\n"
-        full_prompt += "2. 중요한 키워드는 **굵게(Bold)** 표시하세요.\n"
-        full_prompt += "3. 단계별 안내가 필요하면 숫자 리스트를 사용하세요.\n"
-        
-        if history_text:
-            full_prompt += f"\n[이전 대화 기록]\n{history_text}\n(위의 이전 대화의 문맥을 이어서 학생의 질문에 답변하세요.)\n"
+            context = "\n".join([d.page_content for d in relevant_docs])
             
-        full_prompt += f"\n[관련 학칙 및 정보]\n{context}\n\n[학생 질문]\n{prompt}"
-        
-        # [로그 추가] AI 생성 시작 시간
-        ai_start = time.time()
-        response = llm.invoke(full_prompt)
-        ai_duration = time.time() - ai_start
-        total_duration = time.time() - start_time
-        
-        print(f"🤖 [AI 응답 완료] 생성 시간: {ai_duration:.2f}초 / 총 소요 시간: {total_duration:.2f}초")
-        
-        return QueryResponse(answer=response.content)
+            # 3. LLM 호출 시 프롬프트에 문맥 포함
+            llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
+            
+            full_prompt = "당신은 한세대학교 학부생 상담원입니다. 아래 학칙 및 지침을 바탕으로 당당하고 친절하게 답하세요.\n"
+            full_prompt += "가독성을 위해 다음 원칙을 반드시 지키세요:\n"
+            full_prompt += "1. 나열할 항목이 2개 이상이거나 정보가 구조적이라면 **Markdown 표(Table)** 형식을 적극 활용하여 깔끔하게 정리하세요.\n"
+            full_prompt += "2. 중요한 키워드는 **굵게(Bold)** 표시하세요.\n"
+            full_prompt += "3. 단계별 안내가 필요하면 숫자 리스트를 사용하세요.\n"
+            
+            if history_text:
+                full_prompt += f"\n[이전 대화 기록]\n{history_text}\n(위의 이전 대화의 문맥을 이어서 학생의 질문에 답변하세요.)\n"
+                
+            full_prompt += f"\n[관련 학칙 및 정보]\n{context}\n\n[학생 질문]\n{prompt}"
+            
+            # [로그 추가] AI 생성 및 스트리밍 전송
+            ai_start = time.time()
+            first_chunk = True
+            async for chunk in llm.astream(full_prompt):
+                if first_chunk:
+                    print(f"🤖 [AI 생성 시작] 첫 토큰 도착까지: {time.time() - ai_start:.2f}초")
+                    first_chunk = False
+                yield chunk.content
+                
+            total_duration = time.time() - start_time
+            print(f"✅ [스트리밍 완료] 총 소요 시간: {total_duration:.2f}초")
+            
+        except Exception as e:
+            print(f"❌ [에러 발생] {e}")
+            yield f"AI 응답 생성 중 오류가 발생했습니다: {str(e)}"
+
+    return StreamingResponse(response_generator(), media_type="text/plain")
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()

@@ -55,41 +55,30 @@ async function fetchChatResponse(text) {
 
         const response = await fetch(backendUrl, {
             method: 'POST',
-            mode: 'cors', // Cross-origin 요청 명시
-            credentials: 'omit', // 쿠키 등 인증 정보 제외 (보안/차단 방지)
+            mode: 'cors',
+            credentials: 'omit',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'text/plain' // 스트리밍 텍스트 허용
             },
             body: JSON.stringify({ query: text, history: chatHistory }),
-            signal: controller.signal // 신호 전달
+            signal: controller.signal
         });
 
-        clearTimeout(timeoutId); // 요청 성공 시 타이머 해제
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
             const status = response.status;
             let errorMsg = `서버 응답 오류 (${status})`;
-            console.error(`[DEBUG] 서버 응답 코드: ${status} - URL: ${backendUrl}`);
-            try {
-                const errorData = await response.json();
-                errorMsg = errorData.detail || errorMsg;
-            } catch (e) {
-                const text = await response.text().catch(() => "");
-                if (text) errorMsg += `: ${text.substring(0, 80)}...`;
-                console.error(`[DEBUG] 서버 응답 본문 파싱 실패 또는 텍스트: ${text}`);
-            }
-            throw new Error(errorMsg);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || errorMsg);
         }
-        const data = await response.json();
 
-        // 대화 기록 저장 (어시스턴트 응답과 함께)
-        chatHistory.push({ role: 'user', content: text });
-        chatHistory.push({ role: 'assistant', content: data.answer });
-        // 최근 8개 대화만 유지
-        if (chatHistory.length > 8) {
-            chatHistory = chatHistory.slice(-8);
-        }
+        // 스트리밍 데이터 읽기
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullAnswer = "";
+        bubble.innerHTML = ""; // 로딩 메시지 제거
 
         // marked.js 설정 (줄바꿈 허용)
         marked.setOptions({
@@ -97,8 +86,23 @@ async function fetchChatResponse(text) {
             gfm: true
         });
 
-        // Markdown 렌더링으로 말풍선 갱신
-        bubble.innerHTML = marked.parse(data.answer);
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            fullAnswer += chunk;
+
+            // 실시간 마크다운 렌더링
+            bubble.innerHTML = marked.parse(fullAnswer);
+            scrollToBottom();
+        }
+
+        // 대화 기록 저장
+        chatHistory.push({ role: 'user', content: text });
+        chatHistory.push({ role: 'assistant', content: fullAnswer });
+        if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+
     } catch (error) {
         clearTimeout(timeoutId);
         let msgToShow = error.message;
