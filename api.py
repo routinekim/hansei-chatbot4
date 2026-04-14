@@ -104,7 +104,17 @@ class HanseiBot:
 bot = HanseiBot()
 
 def scrape_academic_schedule():
-    return """📅 **[2026학년도 학사일정]** (상세 정보는 검색을 통해 확인하세요)"""
+    """2026haksa.txt 파일에서 학사일정을 읽어옵니다."""
+    path = os.path.join(os.path.dirname(__file__), "2026haksa.txt")
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return f"📅 **[2026학년도 학사일정]**\n\n{content}\n\n*상세 내용은 학교 홈페이지 공지사항을 꼭 확인해 주세요!*"
+        else:
+            return "📅 학사일정 파일(2026haksa.txt)을 찾을 수 없습니다. 관리자에게 문의해 주세요."
+    except Exception as e:
+        return f"📅 학사일정을 읽어오는 중 오류가 발생했습니다: {str(e)}"
 
 @app.on_event("startup")
 async def startup_event():
