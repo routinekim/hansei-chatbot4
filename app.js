@@ -47,7 +47,7 @@ async function fetchChatResponse(text) {
 
     // 서버에 요청 전송 (타임아웃 90초 설정)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90초 후 취소
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120초 후 취소 (충분한 폴백 시간 확보)
 
     let startTime = performance.now();
     try {

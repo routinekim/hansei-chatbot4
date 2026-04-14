@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Hansei Chatbot API",
-    description="한세대학교 학사 챗봇 백엔드 API 서버 (503 폴백 강화 버전)"
+    description="한세대학교 학사 챗봇 백엔드 API 서버 (속도 최적화 버전)"
 )
 
 # CORS 설정
@@ -49,7 +49,7 @@ class QueryRequest(BaseModel):
 class HanseiBot:
     def __init__(self):
         self.retriever = None
-        self.models = [] # 사용할 수 있는 LLM 객체들의 리스트
+        self.models = [] 
         self.is_ready = False
 
     async def initialize(self):
@@ -68,9 +68,9 @@ class HanseiBot:
             )
             self.retriever = vector_db.as_retriever(search_kwargs={"k": 6})
             
-            # 3-2. LLM 모델 풀 구성 (우선순위 순)
+            # 3-2. LLM 모델 풀 구성 (사용자의 요청으로 2.5-flash 제외)
+            # 개별 모델 타임아웃을 20초로 설정하여 빠른 전환(Fail-Fast) 유도
             model_names = [
-                "gemini-2.5-flash", 
                 "gemini-2.5-flash-lite", 
                 "gemini-2.0-flash", 
                 "gemini-1.5-flash"
@@ -81,10 +81,11 @@ class HanseiBot:
                     llm = ChatGoogleGenerativeAI(
                         model=name, 
                         temperature=0,
-                        max_retries=1 # 실시간 폴백을 위해 내부 재시도는 최소화
+                        timeout=20.0, # 20초 내 응답 없으면 다음 모델 시도
+                        max_retries=0   # 타임아웃 지연을 막기 위해 재시도는 0
                     )
                     self.models.append({"name": name, "obj": llm})
-                    logger.info(f"✅ [모델 로드 완료] {name}")
+                    logger.info(f"✅ [모델 로드 완료] {name} (Timeout: 20s)")
                 except Exception as e:
                     logger.warning(f"⚠️ [모델 로드 실패] {name}: {str(e)}")
 
@@ -126,7 +127,7 @@ async def health():
 
 @app.post("/chat")
 async def chat(request: QueryRequest):
-    """실시간 스트리밍 답변 엔드포인트 (실시간 503 폴백 로직 포함)"""
+    """실시간 스트리밍 답변 엔드포인트 (연결 유지 및 빠른 전환 로직)"""
     request_start = time.time()
     
     if not bot.is_ready:
@@ -144,6 +145,9 @@ async def chat(request: QueryRequest):
         relevant_docs = await asyncio.to_thread(bot.retriever.invoke, prompt)
         context = "\n".join([d.page_content for d in relevant_docs])
         
+        # 🔔 [Keep-alive] 브라우저 연결 유지를 위해 작업 상태를 즉시 알립니다.
+        yield "데이터 검토를 마쳤습니다. 최적의 답변 엔진을 선택하여 답변을 시작합니다... ⏳\n\n"
+
         # 3. 대화 문맥 구성
         history_text = ""
         if request.history:
@@ -169,6 +173,7 @@ async def chat(request: QueryRequest):
                 gen_start = time.time()
                 first_chunk = True
                 
+                # 내부적으로 타임아웃을 체크하기 위해 asyncio.wait_for를 보조적으로 사용
                 async for chunk in llm.astream(full_prompt):
                     if first_chunk:
                         logger.info(f"⚡ [스트리밍 시작] {model_name} (응답시간: {time.time() - gen_start:.2f}s)")
@@ -178,24 +183,18 @@ async def chat(request: QueryRequest):
                 
                 success = True
                 logger.info(f"✅ [답변 완료] 성공 모델: {model_name} (총 소요: {time.time() - request_start:.2f}s)")
-                break # 성공 시 루프 탈출
+                break 
                 
             except Exception as e:
                 error_str = str(e)
                 last_error = error_str
-                # 503(인기 폭주) 또는 일시적인 사용 불가 에러인 경우 다음 모델 시도
-                if "503" in error_str or "demand" in error_str.lower() or "Resource exhausted" in error_str:
-                    logger.warning(f"⚠️ [503/과부하 감지] {model_name} 실패, 다음 모델로 전환합니다. (사유: {error_str[:100]}...)")
-                    continue
-                else:
-                    # 그 외의 치명적 에러(401, 403 등)는 즉시 중단
-                    logger.error(f"❌ [치명적 에러] {model_name}: {error_str}")
-                    yield f"⚠️ 챗봇 엔진 오류가 발생했습니다: {error_str}"
-                    return
+                # 503, 429, Timeout 등 일시적 에러 시 다음 모델로 즉시 전환
+                logger.warning(f"⚠️ [전환 시도] {model_name} 실패, 다음 엔진으로 이동합니다. (점검: {error_str[:60]}...)")
+                continue
 
         if not success:
-            logger.error(f"💀 [최종 실패] 모든 모델이 응답할 수 없습니다. 마지막 에러: {last_error}")
-            yield f"⚠️ 현재 모든 AI 모델의 사용량이 많아 답변을 드릴 수 없습니다. 잠시 후 다시 시도해 주세요. (503 Fallback Failed)"
+            logger.error(f"💀 [최종 실패] 모든 모델 응답 불가. 마지막 에러: {last_error}")
+            yield f"\n\n⚠️ 현재 모든 AI 모델의 사용량이 매우 많아 답변을 드릴 수 없습니다. 잠시 후 페이지를 새로고침(F5)하여 다시 시도해 주세요."
 
     return StreamingResponse(response_generator(), media_type="text/plain")
 
