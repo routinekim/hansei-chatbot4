@@ -152,21 +152,6 @@ async def chat_endpoint(request: QueryRequest):
             yield f"AI 응답 생성 중 오류가 발생했습니다: {str(e)}"
 
     return StreamingResponse(response_generator(), media_type="text/plain")
-    except Exception as e:
-        import traceback
-        error_trace = traceback.format_exc()
-        print(f"!!! AI 통신 에러 발생 !!!\n{error_trace}")
-        
-        detail_msg = str(e)
-        if "API_KEY_INVALID" in detail_msg:
-            detail_msg = "Google API 키가 유효하지 않습니다. Render 설정에서 GOOGLE_API_KEY를 확인해 주세요."
-        elif "quota" in detail_msg.lower():
-            detail_msg = "Google API 할당량이 초과되었습니다. 잠시 후 다시 시도해 주세요."
-            
-        raise HTTPException(
-            status_code=500, 
-            detail=f"AI 응답 생성 실패: {detail_msg}"
-        )
 
 # 진단용 GET 경로 (브라우저 확인용)
 @app.get("/api/chat")
