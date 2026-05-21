@@ -113,17 +113,34 @@ class HanseiBot:
             logger.error(f"❌ [초기화 실패] {str(e)}")
             self.is_ready = False
 
-    async def search(self, query: str, k: int = 6) -> str:
+    async def search(self, query: str) -> str:
         query_embedding = await asyncio.to_thread(self.embeddings.embed_query, query)
-        result = await asyncio.to_thread(
-            lambda: self.supabase.rpc("match_chunks", {
-                "query_embedding": query_embedding,
-                "match_count": k
-            }).execute()
+
+        chunks_result, faqs_result = await asyncio.gather(
+            asyncio.to_thread(
+                lambda: self.supabase.rpc("match_chunks", {
+                    "query_embedding": query_embedding,
+                    "match_count": 4
+                }).execute()
+            ),
+            asyncio.to_thread(
+                lambda: self.supabase.rpc("match_faqs", {
+                    "query_embedding": query_embedding,
+                    "match_count": 3
+                }).execute()
+            )
         )
-        if not result.data:
-            return ""
-        return "\n".join([r["content"] for r in result.data])
+
+        parts = []
+        if chunks_result.data:
+            parts.append("[문서 검색 결과]")
+            parts.extend([r["content"] for r in chunks_result.data])
+        if faqs_result.data:
+            parts.append("[FAQ 검색 결과]")
+            for r in faqs_result.data:
+                parts.append(f"Q: {r['question']}\nA: {r['answer']}")
+
+        return "\n\n".join(parts)
 
 bot = HanseiBot()
 
@@ -152,7 +169,7 @@ async def chat(request: QueryRequest):
     async def response_generator():
         prompt = request.query
         
-        # 1. 관련 정보 검색 (Supabase 벡터 검색)
+        # 1. 관련 정보 검색 (chunks + faqs 동시 벡터 검색)
         context = await bot.search(prompt)
         
         # 🔔 [Keep-alive] 연결 유지를 위한 즉시 스트리밍
