@@ -3,7 +3,6 @@ import asyncio
 # 1. 최우선 환경 설정 (임포트 전 실행 필수)
 os.environ["GOOGLE_API_VERSION"] = "v1"
 
-import json
 import logging
 import time
 from typing import List, Optional
@@ -16,7 +15,7 @@ from dotenv import load_dotenv
 
 # 2. AI 라이브러리 임포트 (v1 설정 이후 실행)
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_community.vectorstores import FAISS
+from supabase import create_client, Client
 
 # 환경 변수 로드
 load_dotenv()
@@ -53,9 +52,10 @@ class QueryRequest(BaseModel):
 # 4. 챗봇 엔진 클래스
 class HanseiBot:
     def __init__(self):
-        self.retriever = None
-        self.models = [] 
-        self.schedule_data = "" # 학사일정 텍스트 원본 보관
+        self.supabase: Client = None
+        self.embeddings = None
+        self.models = []
+        self.schedule_data = ""
         self.is_ready = False
 
     async def initialize(self):
@@ -63,35 +63,38 @@ class HanseiBot:
             start_time = time.time()
             logger.info("📡 [초기화] AI 엔진 및 데이터 로드 시작...")
 
-            # 4-1. 벡터 DB 로드
-            embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
-            vector_db = await asyncio.to_thread(
-                FAISS.load_local, 
-                "faiss_index", 
-                embeddings, 
-                allow_dangerous_deserialization=True
+            # 4-1. Supabase 연결
+            self.supabase = create_client(
+                os.environ["SUPABASE_URL"],
+                os.environ["SUPABASE_KEY"]
             )
-            self.retriever = vector_db.as_retriever(search_kwargs={"k": 6})
-            
-            # 4-2. 학사일정 데이터 로드
-            haksa_path = os.path.join(os.path.dirname(__file__), "2026haksa.txt")
-            if os.path.exists(haksa_path):
-                with open(haksa_path, "r", encoding="utf-8") as f:
-                    self.schedule_data = f.read()
-                logger.info("📅 [데이터 로드] 2026학년도 학사일정 로드 완료")
-            
-            # 4-3. 모델 풀 구성 (최신 모델 위주)
+            logger.info("🗄️ [Supabase] 연결 완료")
+
+            # 4-2. 임베딩 모델 초기화
+            self.embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
+
+            # 4-3. 학사일정 데이터 로드 (chunks 테이블 metadata.source = 'schedule')
+            result = await asyncio.to_thread(
+                lambda: self.supabase.table("chunks")
+                    .select("content")
+                    .eq("metadata->>source", "schedule")
+                    .execute()
+            )
+            if result.data:
+                self.schedule_data = "\n".join([r["content"] for r in result.data])
+                logger.info(f"📅 [데이터 로드] 학사일정 {len(result.data)}건 로드 완료")
+            else:
+                logger.warning("⚠️ [학사일정] Supabase chunks에 schedule 데이터가 없습니다.")
+
+            # 4-4. 모델 풀 구성
             model_names = [
-                # "gemini-2.0-flash-lite",
-                # "gemini-1.5-flash", 
-                "gemini-2.5-flash-lite", 
-                # "gemini-2.0-flash"
+                "gemini-2.5-flash-lite",
             ]
-            
+
             for name in model_names:
                 try:
                     llm = ChatGoogleGenerativeAI(
-                        model=name, 
+                        model=name,
                         temperature=0,
                         timeout=20.0,
                         max_retries=0
@@ -109,6 +112,18 @@ class HanseiBot:
         except Exception as e:
             logger.error(f"❌ [초기화 실패] {str(e)}")
             self.is_ready = False
+
+    async def search(self, query: str, k: int = 6) -> str:
+        query_embedding = await asyncio.to_thread(self.embeddings.embed_query, query)
+        result = await asyncio.to_thread(
+            lambda: self.supabase.rpc("match_chunks", {
+                "query_embedding": query_embedding,
+                "match_count": k
+            }).execute()
+        )
+        if not result.data:
+            return ""
+        return "\n".join([r["content"] for r in result.data])
 
 bot = HanseiBot()
 
@@ -137,9 +152,8 @@ async def chat(request: QueryRequest):
     async def response_generator():
         prompt = request.query
         
-        # 1. 관련 정보 검색 (RAG)
-        relevant_docs = await asyncio.to_thread(bot.retriever.invoke, prompt)
-        context = "\n".join([d.page_content for d in relevant_docs])
+        # 1. 관련 정보 검색 (Supabase 벡터 검색)
+        context = await bot.search(prompt)
         
         # 🔔 [Keep-alive] 연결 유지를 위한 즉시 스트리밍
         yield "데이터를 분석하고 최적의 엔진으로 답변을 구성하고 있습니다... ⏳\n\n"
